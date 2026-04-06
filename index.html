@@ -377,6 +377,15 @@
             <div class="empty-state">Dang load...</div>
           </div>
 
+          <!-- Made in selector -->
+          <div style="margin-top:10px;display:flex;align-items:center;gap:8px;">
+            <label style="font-size:12px;font-weight:600;color:#888;">MADE IN:</label>
+            <select id="madeInSelect" style="padding:5px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;font-weight:600;">
+              <option value="Vietnam">Vietnam</option>
+              <option value="China">China</option>
+            </select>
+          </div>
+
           <!-- Footer -->
           <div class="list-footer">
             <span id="statusText">0 san pham</span>
@@ -514,6 +523,14 @@
     const clearSelBtn = document.getElementById('clearSelBtn');
     const statusText = document.getElementById('statusText');
     const selectAllBtn = document.getElementById('selectAllBtn');
+    const madeInSelect = document.getElementById('madeInSelect');
+
+    function getMadeIn() { return madeInSelect.value; }
+
+    // Update preview when Made In changes
+    madeInSelect.addEventListener('change', () => {
+      if (previewId) showPreview(previewId);
+    });
 
     document.getElementById('refreshBtn').addEventListener('click', () => {
       selectedIds.clear();
@@ -711,7 +728,7 @@
                 <div class="label-barcode-img">${p.barcode ? '<img src="'+p.barcode+'">' : '<span class="label-barcode-placeholder">FNSKU Barcode</span>'}</div>
                 <div class="label-bottom-row">
                   <span class="label-fnsku">${esc(p.fnsku)}</span>
-                  <span class="label-made-in">Made in ${esc(p.madeIn)}</span>
+                  <span class="label-made-in">Made in ${esc(getMadeIn())}</span>
                 </div>
               </div>
             </div>
@@ -740,7 +757,7 @@
       document.getElementById('r-store').textContent = p.storeId;
       document.getElementById('r-name').textContent = p.productName;
       document.getElementById('r-fnsku').textContent = p.fnsku;
-      document.getElementById('r-made').textContent = 'Made in ' + p.madeIn;
+      document.getElementById('r-made').textContent = 'Made in ' + getMadeIn();
       document.getElementById('r-qr').innerHTML = p.qr
         ? '<img src="'+p.qr+'">' : '<span class="label-qr-placeholder">QR</span>';
       document.getElementById('r-bc').innerHTML = p.barcode
