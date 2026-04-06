@@ -469,22 +469,17 @@
 
         while (hasMore) {
           const apiUrl = JODOO.apiBase + '/app/entry/data/list';
-          // Try direct first, fallback to CORS proxy
-          let res;
-          try {
-            res = await fetch(apiUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + JODOO.apiKey },
-              body: JSON.stringify({ app_id: JODOO.appId, entry_id: JODOO.entryId, fields: JODOO.fields, limit, offset }),
-            });
-          } catch (e) {
-            // CORS blocked — retry via proxy
-            res = await fetch(JODOO.proxy + encodeURIComponent(apiUrl), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + JODOO.apiKey },
-              body: JSON.stringify({ app_id: JODOO.appId, entry_id: JODOO.entryId, fields: JODOO.fields, limit, offset }),
-            });
-          }
+          const payload = JSON.stringify({ app_id: JODOO.appId, entry_id: JODOO.entryId, fields: JODOO.fields, limit, offset });
+          const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + JODOO.apiKey };
+
+          // Use CORS proxy (Jodoo API does not allow browser cross-origin)
+          const res = await fetch(JODOO.proxy + encodeURIComponent(apiUrl), {
+            method: 'POST',
+            headers: headers,
+            body: payload,
+          });
+
+          if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + res.statusText);
 
           const json = await res.json();
 
