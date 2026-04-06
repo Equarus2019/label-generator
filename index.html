@@ -350,8 +350,11 @@
       <div>
         <div class="panel">
           <div class="panel-header">
-            <h2>San pham</h2>
-            <span class="paste-toggle" id="pasteToggle">Paste danh sach ID</span>
+            <h2>San pham <span id="totalCount" style="font-weight:400;color:#aaa;font-size:12px;"></span></h2>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-secondary btn-sm" id="refreshBtn" title="Tai lai du lieu tu Jodoo">Refresh</button>
+              <span class="paste-toggle" id="pasteToggle">Paste danh sach ID</span>
+            </div>
           </div>
 
           <!-- Search -->
@@ -422,29 +425,85 @@
 
   <script>
     // ═══════════════════════════════════════════════
-    // SAMPLE DATA — replace with Jodoo API later
+    // JODOO API CONFIG
     // ═══════════════════════════════════════════════
-    const ALL_PRODUCTS = [
-      { productId: "2190", storeId: "AMZ-US-VN04", productName: "Blue Graduation Advice Cards 2026 - Seasonal", fnsku: "X004ZUBD9T", madeIn: "Vietnam", qr: null, barcode: null },
-      { productId: "2191", storeId: "AMZ-US-VN04", productName: "Red Graduation Advice Cards 2026 - Seasonal", fnsku: "X004ZUBD9U", madeIn: "Vietnam", qr: null, barcode: null },
-      { productId: "2192", storeId: "AMZ-US-VN04", productName: "Gold Graduation Advice Cards 2026 - Premium", fnsku: "X004ZUBD9V", madeIn: "Vietnam", qr: null, barcode: null },
-      { productId: "sp26-344", storeId: "AMZ-US-VN03", productName: "Wooden Photo Frame 5x7 - Natural Oak", fnsku: "X005ABCD01", madeIn: "Vietnam", qr: null, barcode: null },
-      { productId: "sp26-234", storeId: "AMZ-US-VN03", productName: "Bamboo Desk Organizer - 3 Tier", fnsku: "X005ABCD02", madeIn: "Vietnam", qr: null, barcode: null },
-      { productId: "sp26-500", storeId: "AMZ-US-VN03", productName: "Ceramic Planter Set - White Matte", fnsku: "X005ABCD03", madeIn: "China", qr: null, barcode: null },
-      { productId: "sp26-101", storeId: "AMZ-JP-VN01", productName: "Origami Paper Set 500 Sheets - Pastel", fnsku: "X005EFGH01", madeIn: "Vietnam", qr: null, barcode: null },
-      { productId: "sp26-102", storeId: "AMZ-JP-VN01", productName: "Washi Tape Collection 20 Rolls - Floral", fnsku: "X005EFGH02", madeIn: "Japan", qr: null, barcode: null },
-      { productId: "sp26-450", storeId: "AMZ-UK-VN02", productName: "Scented Candle Gift Set - Lavender & Vanilla", fnsku: "X005IJKL01", madeIn: "Vietnam", qr: null, barcode: null },
-      { productId: "sp26-451", storeId: "AMZ-UK-VN02", productName: "Essential Oil Diffuser - Bamboo Mini", fnsku: "X005IJKL02", madeIn: "China", qr: null, barcode: null },
-      { productId: "sp26-600", storeId: "AMZ-DE-VN01", productName: "Recycled Notebook A5 - Kraft Cover", fnsku: "X005MNOP01", madeIn: "Vietnam", qr: null, barcode: null },
-      { productId: "sp26-601", storeId: "AMZ-DE-VN01", productName: "Eco Pen Set 5-Pack - Black Ink", fnsku: "X005MNOP02", madeIn: "Vietnam", qr: null, barcode: null },
-    ];
+    const JODOO = {
+      apiBase: 'https://api.jodoo.com/api/v5',
+      apiKey: 'x540Emnndk1jv82iy9mtuhF45tWr7ruz',
+      appId: '67f159687668457fbab1d83b',
+      entryId: '689da6d7f4503bca3b458d73',
+      fields: ['product_id', 'store_id', 'product_name', 'fnsku', 'sales_channel'],
+    };
 
     // ═══════════════════════════════════════════════
-    // STATE
+    // DATA + STATE
     // ═══════════════════════════════════════════════
+    let ALL_PRODUCTS = [];
     let selectedIds = new Set();
     let previewId = null;
     let searchQuery = '';
+    let isLoading = false;
+
+    // ═══════════════════════════════════════════════
+    // FETCH FROM JODOO
+    // ═══════════════════════════════════════════════
+    async function fetchProducts() {
+      isLoading = true;
+      productList.innerHTML = '<div class="empty-state">Dang tai du lieu tu Jodoo...</div>';
+
+      try {
+        let allData = [];
+        let hasMore = true;
+        let offset = 0;
+        const limit = 100;
+
+        while (hasMore) {
+          const res = await fetch(JODOO.apiBase + '/app/entry/data/list', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + JODOO.apiKey,
+            },
+            body: JSON.stringify({
+              app_id: JODOO.appId,
+              entry_id: JODOO.entryId,
+              fields: JODOO.fields,
+              limit: limit,
+              offset: offset,
+            }),
+          });
+
+          const json = await res.json();
+
+          if (!json.data || json.data.length === 0) {
+            hasMore = false;
+          } else {
+            allData = allData.concat(json.data);
+            offset += limit;
+            // Stop if we got less than limit (last page)
+            if (json.data.length < limit) hasMore = false;
+          }
+        }
+
+        ALL_PRODUCTS = allData.map(d => ({
+          productId: d.product_id || '',
+          storeId: d.store_id || '',
+          productName: d.product_name || '',
+          fnsku: d.fnsku || '',
+          salesChannel: d.sales_channel || '',
+          madeIn: 'Vietnam', // Default — user picks when downloading
+          qr: null,
+          barcode: null,
+        })).filter(p => p.productId && p.fnsku); // Skip empty records
+
+        isLoading = false;
+        renderList();
+
+      } catch (err) {
+        isLoading = false;
+        productList.innerHTML = '<div class="empty-state" style="color:#c00;">Loi ket noi Jodoo: ' + err.message + '</div>';
+      }
+    }
 
     // ═══════════════════════════════════════════════
     // ELEMENTS
@@ -455,6 +514,13 @@
     const clearSelBtn = document.getElementById('clearSelBtn');
     const statusText = document.getElementById('statusText');
     const selectAllBtn = document.getElementById('selectAllBtn');
+
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+      selectedIds.clear();
+      previewId = null;
+      document.getElementById('previewArea').innerHTML = '<div class="preview-empty">Click vao san pham de xem preview</div>';
+      fetchProducts();
+    });
 
     // ═══════════════════════════════════════════════
     // SEARCH & FILTER
@@ -580,12 +646,13 @@
 
     function updateFooter(filtered) {
       const n = selectedIds.size;
-      statusText.textContent = filtered.length + ' san pham' + (searchQuery ? ' (loc)' : '') + (n > 0 ? ` · ${n} da chon` : '');
+      const total = ALL_PRODUCTS.length;
+      document.getElementById('totalCount').textContent = total > 0 ? `(${total})` : '';
+      statusText.textContent = (searchQuery ? `${filtered.length}/${total} loc` : `${total} san pham`) + (n > 0 ? ` · ${n} da chon` : '');
       downloadBtn.textContent = n === 1 ? 'Download label (PNG)' : `Download ${n} labels (ZIP)`;
       downloadBtn.disabled = n === 0;
       clearSelBtn.disabled = n === 0;
 
-      // Update Select All button text
       const allFilteredSelected = filtered.length > 0 && filtered.every(p => selectedIds.has(p.productId));
       selectAllBtn.textContent = allFilteredSelected ? 'Bo chon tat ca' : 'Chon tat ca';
     }
@@ -746,9 +813,9 @@
     });
 
     // ═══════════════════════════════════════════════
-    // INIT
+    // INIT — fetch from Jodoo on load
     // ═══════════════════════════════════════════════
-    renderList();
+    fetchProducts();
   </script>
 </body>
 </html>
