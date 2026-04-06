@@ -438,6 +438,7 @@
     // ═══════════════════════════════════════════════
     const JODOO = {
       apiBase: 'https://api.jodoo.com/api/v5',
+      proxy: 'https://corsproxy.io/?',  // CORS proxy for browser requests
       apiKey: 'x540Emnndk1jv82iy9mtuhF45tWr7ruz',
       appId: '67f159687668457fbab1d83b',
       entryId: '689da6d7f4503bca3b458d73',
@@ -467,20 +468,23 @@
         const limit = 100;
 
         while (hasMore) {
-          const res = await fetch(JODOO.apiBase + '/app/entry/data/list', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer ' + JODOO.apiKey,
-            },
-            body: JSON.stringify({
-              app_id: JODOO.appId,
-              entry_id: JODOO.entryId,
-              fields: JODOO.fields,
-              limit: limit,
-              offset: offset,
-            }),
-          });
+          const apiUrl = JODOO.apiBase + '/app/entry/data/list';
+          // Try direct first, fallback to CORS proxy
+          let res;
+          try {
+            res = await fetch(apiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + JODOO.apiKey },
+              body: JSON.stringify({ app_id: JODOO.appId, entry_id: JODOO.entryId, fields: JODOO.fields, limit, offset }),
+            });
+          } catch (e) {
+            // CORS blocked — retry via proxy
+            res = await fetch(JODOO.proxy + encodeURIComponent(apiUrl), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + JODOO.apiKey },
+              body: JSON.stringify({ app_id: JODOO.appId, entry_id: JODOO.entryId, fields: JODOO.fields, limit, offset }),
+            });
+          }
 
           const json = await res.json();
 
