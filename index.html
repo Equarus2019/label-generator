@@ -352,7 +352,8 @@
           <div class="panel-header">
             <h2>San pham <span id="totalCount" style="font-weight:400;color:#aaa;font-size:12px;"></span></h2>
             <div style="display:flex;gap:8px;align-items:center;">
-              <button class="btn btn-secondary btn-sm" id="refreshBtn" title="Tai lai du lieu tu Jodoo">Refresh</button>
+              <button class="btn btn-primary btn-sm" id="syncBtn" title="Cap nhat du lieu moi nhat tu Jodoo">Sync Jodoo</button>
+              <button class="btn btn-secondary btn-sm" id="refreshBtn" title="Tai lai data.json">Refresh</button>
               <span class="paste-toggle" id="pasteToggle">Paste danh sach ID</span>
             </div>
           </div>
@@ -513,6 +514,89 @@
     searchInput.addEventListener('input', () => {
       searchQuery = searchInput.value.trim();
       renderList();
+    });
+
+    // ═══════════════════════════════════════════════
+    // SYNC JODOO (trigger GitHub Action)
+    // ═══════════════════════════════════════════════
+    const GITHUB_REPO = 'Equarus2019/label-generator';
+    const WORKFLOW_ID = 'sync-jodoo.yml';
+
+    function getGithubToken() {
+      return localStorage.getItem('gh_token');
+    }
+
+    function askGithubToken() {
+      const token = prompt(
+        'Lan dau sync can GitHub Token.\n\n' +
+        '1. Vao: https://github.com/settings/tokens?type=beta\n' +
+        '2. Generate new token → ten: label-sync\n' +
+        '3. Repository: Only select → label-generator\n' +
+        '4. Permissions: Actions → Read and write\n' +
+        '5. Generate → copy token paste vao day:'
+      );
+      if (token && token.trim()) {
+        localStorage.setItem('gh_token', token.trim());
+        return token.trim();
+      }
+      return null;
+    }
+
+    document.getElementById('syncBtn').addEventListener('click', async () => {
+      let token = getGithubToken();
+      if (!token) {
+        token = askGithubToken();
+        if (!token) return;
+      }
+
+      const btn = document.getElementById('syncBtn');
+      btn.textContent = 'Dang sync...';
+      btn.disabled = true;
+
+      try {
+        // Trigger GitHub Action
+        const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/${WORKFLOW_ID}/dispatches`, {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + token,
+            'Accept': 'application/vnd.github.v3+json',
+          },
+          body: JSON.stringify({ ref: 'master' }),
+        });
+
+        if (res.status === 204) {
+          btn.textContent = 'Sync started!';
+          btn.style.background = '#2e7d32';
+          // Wait for Action to finish, then reload data
+          setTimeout(async () => {
+            btn.textContent = 'Dang cap nhat...';
+            // Poll until data changes (max 60s)
+            const oldCount = ALL_PRODUCTS.length;
+            for (let i = 0; i < 12; i++) {
+              await new Promise(r => setTimeout(r, 5000));
+              await fetchProducts();
+              if (ALL_PRODUCTS.length !== oldCount) break;
+            }
+            btn.textContent = 'Sync Jodoo';
+            btn.style.background = '';
+            btn.disabled = false;
+          }, 3000);
+        } else if (res.status === 401 || res.status === 403) {
+          localStorage.removeItem('gh_token');
+          alert('Token het han hoac sai. Vui long nhap lai.');
+          btn.textContent = 'Sync Jodoo';
+          btn.disabled = false;
+        } else {
+          const err = await res.text();
+          alert('Loi: ' + res.status + ' ' + err);
+          btn.textContent = 'Sync Jodoo';
+          btn.disabled = false;
+        }
+      } catch (err) {
+        alert('Loi ket noi: ' + err.message);
+        btn.textContent = 'Sync Jodoo';
+        btn.disabled = false;
+      }
     });
 
     // ═══════════════════════════════════════════════
