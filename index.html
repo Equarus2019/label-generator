@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Label Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,600;0,700;0,800;0,900;1,600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Poppins', -apple-system, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      min-height: 100vh;
+    }
+
+    .app { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 2px; }
+    .subtitle { color: #888; font-size: 13px; margin-bottom: 20px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .panel {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .panel + .panel { margin-top: 16px; }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .panel-header h2 { font-size: 14px; font-weight: 700; }
+
+    /* ─── Search bar ─── */
+    .search-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .search-input {
+      flex: 1;
+      padding: 9px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+
+    .search-input:focus { outline: none; border-color: #333; }
+
+    .search-input::placeholder { color: #bbb; }
+
+    /* ─── Paste area ─── */
+    .paste-toggle {
+      font-size: 12px;
+      color: #666;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .paste-toggle:hover { color: #333; }
+
+    .paste-area {
+      display: none;
+      margin-bottom: 12px;
+    }
+
+    .paste-area.open { display: block; }
+
+    .paste-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .paste-row input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 12px;
+      font-family: inherit;
+    }
+
+    .paste-row input:focus { outline: none; border-color: #333; }
+
+    .paste-hint {
+      font-size: 11px;
+      color: #aaa;
+      margin-top: 4px;
+    }
+
+    /* ─── Buttons ─── */
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+
+    .btn:disabled { opacity: 0.4; cursor: default; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    .btn-primary { background: #333; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #111; }
+    .btn-secondary { background: #eee; color: #333; }
+    .btn-secondary:hover:not(:disabled) { background: #ddd; }
+    .btn-danger { background: #fff0f0; color: #c00; border: 1px solid #fdd; }
+    .btn-danger:hover:not(:disabled) { background: #ffe0e0; }
+
+    /* ─── Product list ─── */
+    .product-list {
+      max-height: 420px;
+      overflow-y: auto;
+      border: 1px solid #eee;
+      border-radius: 8px;
+    }
+
+    .product-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid #f5f5f5;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .product-item:last-child { border-bottom: none; }
+    .product-item:hover { background: #fafafa; }
+    .product-item.selected { background: #f0f7ff; }
+    .product-item.previewing { box-shadow: inset 3px 0 0 #333; }
+
+    .product-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .product-info { flex: 1; min-width: 0; }
+
+    .product-info .pid {
+      font-size: 15px;
+      font-weight: 700;
+      color: #111;
+    }
+
+    .product-info .name {
+      font-size: 12px;
+      color: #888;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .product-info .meta {
+      font-size: 11px;
+      color: #bbb;
+      margin-top: 1px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #ccc;
+      font-size: 13px;
+    }
+
+    .list-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+      font-size: 12px;
+      color: #888;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+    }
+
+    /* ─── Preview ─── */
+    .preview-wrapper { position: sticky; top: 20px; }
+
+    .label-container {
+      background: #fff;
+      border: 1px solid #ddd;
+      overflow: hidden;
+      margin-top: 8px;
+      border-radius: 4px;
+    }
+
+    .label {
+      width: 709px;
+      height: 472px;
+      padding: 12px 16px 10px;
+      background: #fff;
+      font-family: 'Poppins', sans-serif;
+      display: grid;
+      grid-template-rows: auto auto auto 1fr auto;
+      gap: 0;
+    }
+
+    .label-row1 {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .label-product-id {
+      font-size: 128px;
+      font-weight: 900;
+      line-height: 0.88;
+      letter-spacing: -5px;
+      color: #000;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .label-qr {
+      width: 175px;
+      height: 175px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: #fafafa;
+    }
+
+    .label-qr img { width: 100%; height: 100%; object-fit: contain; }
+    .label-qr-placeholder { font-size: 11px; color: #ccc; }
+
+    .label-store-id { font-size: 40px; font-weight: 800; line-height: 1; color: #000; }
+
+    .label-product-name {
+      font-size: 22px;
+      font-style: italic;
+      font-weight: 600;
+      color: #000;
+      margin-top: 2px;
+      line-height: 1.1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .label-bottom-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .label-barcode-img {
+      width: 100%;
+      height: 75px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: #fafafa;
+    }
+
+    .label-barcode-img img { max-width: 85%; max-height: 100%; object-fit: contain; }
+    .label-barcode-placeholder { font-size: 11px; color: #ccc; }
+
+    .label-bottom-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      width: 100%;
+    }
+
+    .label-fnsku { font-size: 26px; font-weight: 700; color: #000; letter-spacing: 0.5px; }
+    .label-made-in { font-size: 24px; font-weight: 700; color: #000; }
+
+    .label-scaler {
+      transform: scale(var(--label-scale, 0.52));
+      transform-origin: top left;
+      width: 709px;
+      height: 472px;
+    }
+
+    .preview-info { font-size: 11px; color: #aaa; text-align: center; margin-top: 6px; }
+
+    .preview-empty {
+      padding: 48px 20px;
+      text-align: center;
+      color: #ccc;
+      font-size: 13px;
+      border: 1px dashed #e0e0e0;
+      border-radius: 8px;
+      margin-top: 8px;
+    }
+
+    /* ─── Download progress ─── */
+    .download-bar {
+      display: none;
+      margin-top: 12px;
+      padding: 10px 14px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #555;
+    }
+
+    .download-bar.active { display: block; }
+
+    .progress { height: 4px; background: #eee; border-radius: 2px; margin-top: 6px; overflow: hidden; }
+    .progress-fill { height: 100%; background: #333; border-radius: 2px; transition: width 0.3s; }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .preview-wrapper { position: static; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>Label Generator</h1>
+    <p class="subtitle">Tim san pham, tick chon, download label PNG.</p>
+
+    <div class="layout">
+      <!-- ─── Left: Search + Product list ─── -->
+      <div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>San pham</h2>
+            <span class="paste-toggle" id="pasteToggle">Paste danh sach ID</span>
+          </div>
+
+          <!-- Search -->
+          <div class="search-row">
+            <input class="search-input" id="searchInput" type="text" placeholder="Tim theo Product ID hoac ten san pham...">
+            <button class="btn btn-secondary btn-sm" id="selectAllBtn">Chon tat ca</button>
+          </div>
+
+          <!-- Paste IDs -->
+          <div class="paste-area" id="pasteArea">
+            <div class="paste-row">
+              <input type="text" id="pasteInput" placeholder="VD: sp26-344 sp26-234 sp26-500">
+              <button class="btn btn-secondary btn-sm" id="pasteMatchBtn">Tim & chon</button>
+            </div>
+            <p class="paste-hint">Nhap nhieu Product ID cach nhau boi dau cach, phay, hoac xuong dong.</p>
+          </div>
+
+          <!-- Product list -->
+          <div class="product-list" id="productList">
+            <div class="empty-state">Dang load...</div>
+          </div>
+
+          <!-- Footer -->
+          <div class="list-footer">
+            <span id="statusText">0 san pham</span>
+            <div class="toolbar">
+              <button class="btn btn-secondary btn-sm" id="clearSelBtn" disabled>Bo chon</button>
+              <button class="btn btn-primary btn-sm" id="downloadBtn" disabled>Download labels (0)</button>
+            </div>
+          </div>
+          <div id="pasteResult" style="display:none;margin-top:8px;padding:8px 12px;background:#e8f5e9;border-radius:6px;font-size:12px;color:#2e7d32;"></div>
+
+          <div class="download-bar" id="downloadBar">
+            <span id="downloadText">Dang tao label...</span>
+            <div class="progress"><div class="progress-fill" id="progressFill"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Right: Preview ─── -->
+      <div class="panel preview-wrapper">
+        <h2 style="font-size:14px;font-weight:700;margin-bottom:8px;">Preview</h2>
+        <div id="previewArea">
+          <div class="preview-empty">Click vao san pham de xem preview</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden label for PNG rendering -->
+  <div style="position:fixed;left:-9999px;top:0;">
+    <div class="label" id="renderLabel">
+      <div class="label-row1">
+        <div class="label-product-id" id="r-pid"></div>
+        <div class="label-qr" id="r-qr"><span class="label-qr-placeholder">QR</span></div>
+      </div>
+      <div class="label-store-id" id="r-store"></div>
+      <div class="label-product-name" id="r-name"></div>
+      <div class="label-bottom-block">
+        <div class="label-barcode-img" id="r-bc"><span class="label-barcode-placeholder">Barcode</span></div>
+        <div class="label-bottom-row">
+          <span class="label-fnsku" id="r-fnsku"></span>
+          <span class="label-made-in" id="r-made"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ═══════════════════════════════════════════════
+    // SAMPLE DATA — replace with Jodoo API later
+    // ═══════════════════════════════════════════════
+    const ALL_PRODUCTS = [
+      { productId: "2190", storeId: "AMZ-US-VN04", productName: "Blue Graduation Advice Cards 2026 - Seasonal", fnsku: "X004ZUBD9T", madeIn: "Vietnam", qr: null, barcode: null },
+      { productId: "2191", storeId: "AMZ-US-VN04", productName: "Red Graduation Advice Cards 2026 - Seasonal", fnsku: "X004ZUBD9U", madeIn: "Vietnam", qr: null, barcode: null },
+      { productId: "2192", storeId: "AMZ-US-VN04", productName: "Gold Graduation Advice Cards 2026 - Premium", fnsku: "X004ZUBD9V", madeIn: "Vietnam", qr: null, barcode: null },
+      { productId: "sp26-344", storeId: "AMZ-US-VN03", productName: "Wooden Photo Frame 5x7 - Natural Oak", fnsku: "X005ABCD01", madeIn: "Vietnam", qr: null, barcode: null },
+      { productId: "sp26-234", storeId: "AMZ-US-VN03", productName: "Bamboo Desk Organizer - 3 Tier", fnsku: "X005ABCD02", madeIn: "Vietnam", qr: null, barcode: null },
+      { productId: "sp26-500", storeId: "AMZ-US-VN03", productName: "Ceramic Planter Set - White Matte", fnsku: "X005ABCD03", madeIn: "China", qr: null, barcode: null },
+      { productId: "sp26-101", storeId: "AMZ-JP-VN01", productName: "Origami Paper Set 500 Sheets - Pastel", fnsku: "X005EFGH01", madeIn: "Vietnam", qr: null, barcode: null },
+      { productId: "sp26-102", storeId: "AMZ-JP-VN01", productName: "Washi Tape Collection 20 Rolls - Floral", fnsku: "X005EFGH02", madeIn: "Japan", qr: null, barcode: null },
+      { productId: "sp26-450", storeId: "AMZ-UK-VN02", productName: "Scented Candle Gift Set - Lavender & Vanilla", fnsku: "X005IJKL01", madeIn: "Vietnam", qr: null, barcode: null },
+      { productId: "sp26-451", storeId: "AMZ-UK-VN02", productName: "Essential Oil Diffuser - Bamboo Mini", fnsku: "X005IJKL02", madeIn: "China", qr: null, barcode: null },
+      { productId: "sp26-600", storeId: "AMZ-DE-VN01", productName: "Recycled Notebook A5 - Kraft Cover", fnsku: "X005MNOP01", madeIn: "Vietnam", qr: null, barcode: null },
+      { productId: "sp26-601", storeId: "AMZ-DE-VN01", productName: "Eco Pen Set 5-Pack - Black Ink", fnsku: "X005MNOP02", madeIn: "Vietnam", qr: null, barcode: null },
+    ];
+
+    // ═══════════════════════════════════════════════
+    // STATE
+    // ═══════════════════════════════════════════════
+    let selectedIds = new Set();
+    let previewId = null;
+    let searchQuery = '';
+
+    // ═══════════════════════════════════════════════
+    // ELEMENTS
+    // ═══════════════════════════════════════════════
+    const searchInput = document.getElementById('searchInput');
+    const productList = document.getElementById('productList');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const clearSelBtn = document.getElementById('clearSelBtn');
+    const statusText = document.getElementById('statusText');
+    const selectAllBtn = document.getElementById('selectAllBtn');
+
+    // ═══════════════════════════════════════════════
+    // SEARCH & FILTER
+    // ═══════════════════════════════════════════════
+    function getFiltered() {
+      if (!searchQuery) return ALL_PRODUCTS;
+      const q = searchQuery.toLowerCase();
+      return ALL_PRODUCTS.filter(p =>
+        p.productId.toLowerCase().includes(q) ||
+        p.productName.toLowerCase().includes(q) ||
+        p.storeId.toLowerCase().includes(q)
+      );
+    }
+
+    searchInput.addEventListener('input', () => {
+      searchQuery = searchInput.value.trim();
+      renderList();
+    });
+
+    // ═══════════════════════════════════════════════
+    // PASTE IDs
+    // ═══════════════════════════════════════════════
+    document.getElementById('pasteToggle').addEventListener('click', () => {
+      document.getElementById('pasteArea').classList.toggle('open');
+    });
+
+    function doPasteMatch() {
+      const raw = document.getElementById('pasteInput').value.trim();
+      if (!raw) return;
+
+      const ids = raw.split(/[\s,\n\t]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
+      let matched = 0;
+      const notFound = [];
+
+      ids.forEach(id => {
+        const p = ALL_PRODUCTS.find(x => x.productId.toLowerCase() === id);
+        if (p) { selectedIds.add(p.productId); matched++; }
+        else { notFound.push(id); }
+      });
+
+      document.getElementById('pasteInput').value = '';
+      document.getElementById('pasteArea').classList.remove('open');
+      searchInput.value = '';
+      searchQuery = '';
+      renderList();
+
+      // Show feedback
+      const result = document.getElementById('pasteResult');
+      if (matched > 0 && notFound.length === 0) {
+        result.style.background = '#e8f5e9';
+        result.style.color = '#2e7d32';
+        result.textContent = `Da chon ${matched} san pham.`;
+      } else if (matched > 0 && notFound.length > 0) {
+        result.style.background = '#fff8e1';
+        result.style.color = '#f57f17';
+        result.textContent = `Da chon ${matched} san pham. Khong tim thay: ${notFound.join(', ')}`;
+      } else {
+        result.style.background = '#fce4ec';
+        result.style.color = '#c62828';
+        result.textContent = `Khong tim thay san pham nao. Kiem tra lai ID.`;
+      }
+      result.style.display = 'block';
+      setTimeout(() => { result.style.display = 'none'; }, 5000);
+    }
+
+    document.getElementById('pasteMatchBtn').addEventListener('click', doPasteMatch);
+    document.getElementById('pasteInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') doPasteMatch();
+    });
+
+    // ═══════════════════════════════════════════════
+    // RENDER LIST
+    // ═══════════════════════════════════════════════
+    function renderList() {
+      const filtered = getFiltered();
+
+      if (filtered.length === 0) {
+        productList.innerHTML = '<div class="empty-state">Khong tim thay san pham nao.</div>';
+        updateFooter(filtered);
+        return;
+      }
+
+      productList.innerHTML = filtered.map(p => {
+        const checked = selectedIds.has(p.productId) ? 'checked' : '';
+        const selClass = selectedIds.has(p.productId) ? 'selected' : '';
+        const prevClass = previewId === p.productId ? 'previewing' : '';
+        return `
+          <div class="product-item ${selClass} ${prevClass}" data-pid="${esc(p.productId)}">
+            <input type="checkbox" ${checked} data-pid="${esc(p.productId)}">
+            <div class="product-info">
+              <div class="pid">${esc(p.productId)}</div>
+              <div class="name">${esc(p.productName)}</div>
+              <div class="meta">${esc(p.storeId)} · ${esc(p.fnsku)}</div>
+            </div>
+          </div>`;
+      }).join('');
+
+      // Checkbox events
+      productList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', e => {
+          e.stopPropagation();
+          const pid = e.target.dataset.pid;
+          if (e.target.checked) selectedIds.add(pid); else selectedIds.delete(pid);
+          renderList();
+        });
+      });
+
+      // Click row → toggle select + preview
+      productList.querySelectorAll('.product-item').forEach(row => {
+        row.addEventListener('click', e => {
+          if (e.target.tagName === 'INPUT') return;
+          const pid = row.dataset.pid;
+          // Toggle selection
+          if (selectedIds.has(pid)) selectedIds.delete(pid); else selectedIds.add(pid);
+          // Always show preview
+          showPreview(pid);
+          renderList();
+        });
+      });
+
+      updateFooter(filtered);
+    }
+
+    function updateFooter(filtered) {
+      const n = selectedIds.size;
+      statusText.textContent = filtered.length + ' san pham' + (searchQuery ? ' (loc)' : '') + (n > 0 ? ` · ${n} da chon` : '');
+      downloadBtn.textContent = n === 1 ? 'Download label (PNG)' : `Download ${n} labels (ZIP)`;
+      downloadBtn.disabled = n === 0;
+      clearSelBtn.disabled = n === 0;
+
+      // Update Select All button text
+      const allFilteredSelected = filtered.length > 0 && filtered.every(p => selectedIds.has(p.productId));
+      selectAllBtn.textContent = allFilteredSelected ? 'Bo chon tat ca' : 'Chon tat ca';
+    }
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    // ═══════════════════════════════════════════════
+    // SELECT ALL / CLEAR SELECTION
+    // ═══════════════════════════════════════════════
+    selectAllBtn.addEventListener('click', () => {
+      const filtered = getFiltered();
+      const allFilteredSelected = filtered.every(p => selectedIds.has(p.productId));
+
+      if (allFilteredSelected) {
+        // Deselect all filtered
+        filtered.forEach(p => selectedIds.delete(p.productId));
+        selectAllBtn.textContent = 'Chon tat ca';
+      } else {
+        // Select all filtered
+        filtered.forEach(p => selectedIds.add(p.productId));
+        selectAllBtn.textContent = 'Bo chon tat ca';
+      }
+      renderList();
+    });
+
+    clearSelBtn.addEventListener('click', () => {
+      selectedIds.clear();
+      selectAllBtn.textContent = 'Chon tat ca';
+      renderList();
+    });
+
+    // ═══════════════════════════════════════════════
+    // PREVIEW
+    // ═══════════════════════════════════════════════
+    function showPreview(pid) {
+      const p = ALL_PRODUCTS.find(x => x.productId === pid);
+      if (!p) return;
+      previewId = pid;
+
+      const area = document.getElementById('previewArea');
+      area.innerHTML = `
+        <div class="label-container" id="labelContainer">
+          <div class="label-scaler">
+            <div class="label">
+              <div class="label-row1">
+                <div class="label-product-id">${esc(p.productId)}</div>
+                <div class="label-qr">${p.qr ? '<img src="'+p.qr+'">' : '<span class="label-qr-placeholder">QR Code</span>'}</div>
+              </div>
+              <div class="label-store-id">${esc(p.storeId)}</div>
+              <div class="label-product-name">${esc(p.productName)}</div>
+              <div class="label-bottom-block">
+                <div class="label-barcode-img">${p.barcode ? '<img src="'+p.barcode+'">' : '<span class="label-barcode-placeholder">FNSKU Barcode</span>'}</div>
+                <div class="label-bottom-row">
+                  <span class="label-fnsku">${esc(p.fnsku)}</span>
+                  <span class="label-made-in">Made in ${esc(p.madeIn)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="preview-info">${esc(p.productId)} · ${esc(p.storeId)} · 6x4cm</p>
+      `;
+      scalePreview();
+    }
+
+    function scalePreview() {
+      const c = document.getElementById('labelContainer');
+      if (!c) return;
+      const scale = Math.min(c.clientWidth / 709, 1);
+      c.querySelector('.label-scaler').style.setProperty('--label-scale', scale);
+      c.style.height = (472 * scale) + 'px';
+    }
+
+    window.addEventListener('resize', scalePreview);
+
+    // ═══════════════════════════════════════════════
+    // DOWNLOAD SELECTED
+    // ═══════════════════════════════════════════════
+    function populateRenderLabel(p) {
+      document.getElementById('r-pid').textContent = p.productId;
+      document.getElementById('r-store').textContent = p.storeId;
+      document.getElementById('r-name').textContent = p.productName;
+      document.getElementById('r-fnsku').textContent = p.fnsku;
+      document.getElementById('r-made').textContent = 'Made in ' + p.madeIn;
+      document.getElementById('r-qr').innerHTML = p.qr
+        ? '<img src="'+p.qr+'">' : '<span class="label-qr-placeholder">QR</span>';
+      document.getElementById('r-bc').innerHTML = p.barcode
+        ? '<img src="'+p.barcode+'">' : '<span class="label-barcode-placeholder">Barcode</span>';
+    }
+
+    downloadBtn.addEventListener('click', async () => {
+      const selected = ALL_PRODUCTS.filter(p => selectedIds.has(p.productId));
+      if (selected.length === 0) return;
+
+      const bar = document.getElementById('downloadBar');
+      const text = document.getElementById('downloadText');
+      const fill = document.getElementById('progressFill');
+
+      bar.classList.add('active');
+      downloadBtn.disabled = true;
+      fill.style.width = '0%';
+
+      // Single label → PNG direct, multiple → ZIP
+      const isSingle = selected.length === 1;
+
+      const zip = isSingle ? null : new JSZip();
+
+      for (let i = 0; i < selected.length; i++) {
+        const p = selected[i];
+        text.textContent = `Dang tao ${i + 1}/${selected.length}: ${p.productId}`;
+        fill.style.width = ((i + 1) / selected.length * 100) + '%';
+
+        populateRenderLabel(p);
+        await new Promise(r => setTimeout(r, 100));
+
+        try {
+          const canvas = await html2canvas(document.getElementById('renderLabel'), {
+            scale: 2,
+            backgroundColor: '#ffffff',
+            useCORS: true,
+            width: 709,
+            height: 472,
+          });
+
+          const fileName = `${p.productId}_${p.storeId}_label.png`;
+
+          if (isSingle) {
+            // Download PNG directly
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+          } else {
+            // Add to ZIP
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            zip.file(fileName, blob);
+          }
+        } catch (err) {
+          console.error('Render failed:', p.productId, err);
+        }
+      }
+
+      if (!isSingle) {
+        text.textContent = 'Dang nen ZIP...';
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        saveAs(zipBlob, `labels_${selected.length}sp.zip`);
+      }
+
+      text.textContent = isSingle
+        ? `Xong! Da tai label ${selected[0].productId}.`
+        : `Xong! Da tai ${selected.length} label (ZIP).`;
+      downloadBtn.disabled = false;
+      setTimeout(() => { bar.classList.remove('active'); }, 2500);
+    });
+
+    // ═══════════════════════════════════════════════
+    // INIT
+    // ═══════════════════════════════════════════════
+    renderList();
+  </script>
+</body>
+</html>
