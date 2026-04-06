@@ -777,7 +777,8 @@
       if (!isSingle) {
         text.textContent = 'Dang nen ZIP...';
         const zipBlob = await zip.generateAsync({ type: 'blob' });
-        saveAs(zipBlob, `labels_${selected.length}sp.zip`);
+        const today = new Date().toISOString().slice(0,10);
+        saveAs(zipBlob, `Label SP_${selected.length}sp_${today}.zip`);
       }
 
       text.textContent = isSingle
