@@ -436,15 +436,6 @@
     // ═══════════════════════════════════════════════
     // JODOO API CONFIG
     // ═══════════════════════════════════════════════
-    const JODOO = {
-      apiBase: 'https://api.jodoo.com/api/v5',
-      proxy: 'https://corsproxy.io/?',  // CORS proxy for browser requests
-      apiKey: 'x540Emnndk1jv82iy9mtuhF45tWr7ruz',
-      appId: '67f159687668457fbab1d83b',
-      entryId: '689da6d7f4503bca3b458d73',
-      fields: ['product_id', 'store_id', 'product_name', 'fnsku', 'sales_channel'],
-    };
-
     // ═══════════════════════════════════════════════
     // DATA + STATE
     // ═══════════════════════════════════════════════
@@ -452,64 +443,32 @@
     let selectedIds = new Set();
     let previewId = null;
     let searchQuery = '';
-    let isLoading = false;
 
     // ═══════════════════════════════════════════════
-    // FETCH FROM JODOO
+    // LOAD PRODUCTS FROM data.json
+    // (data.json is synced from Jodoo — run sync script to update)
     // ═══════════════════════════════════════════════
     async function fetchProducts() {
-      isLoading = true;
-      productList.innerHTML = '<div class="empty-state">Dang tai du lieu tu Jodoo...</div>';
+      productList.innerHTML = '<div class="empty-state">Dang tai du lieu...</div>';
 
       try {
-        let allData = [];
-        let hasMore = true;
-        let offset = 0;
-        const limit = 100;
+        const res = await fetch('data.json?t=' + Date.now());
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
 
-        while (hasMore) {
-          const apiUrl = JODOO.apiBase + '/app/entry/data/list';
-          const payload = JSON.stringify({ app_id: JODOO.appId, entry_id: JODOO.entryId, fields: JODOO.fields, limit, offset });
-          const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + JODOO.apiKey };
-
-          // Use CORS proxy (Jodoo API does not allow browser cross-origin)
-          const res = await fetch(JODOO.proxy + encodeURIComponent(apiUrl), {
-            method: 'POST',
-            headers: headers,
-            body: payload,
-          });
-
-          if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + res.statusText);
-
-          const json = await res.json();
-
-          if (!json.data || json.data.length === 0) {
-            hasMore = false;
-          } else {
-            allData = allData.concat(json.data);
-            offset += limit;
-            // Stop if we got less than limit (last page)
-            if (json.data.length < limit) hasMore = false;
-          }
-        }
-
-        ALL_PRODUCTS = allData.map(d => ({
-          productId: d.product_id || '',
-          storeId: d.store_id || '',
-          productName: d.product_name || '',
+        ALL_PRODUCTS = data.map(d => ({
+          productId: d.productId || '',
+          storeId: d.storeId || '',
+          productName: d.productName || '',
           fnsku: d.fnsku || '',
-          salesChannel: d.sales_channel || '',
-          madeIn: 'Vietnam', // Default — user picks when downloading
-          qr: null,
-          barcode: null,
-        })).filter(p => p.productId && p.fnsku); // Skip empty records
+          salesChannel: d.salesChannel || '',
+          qr: d.qr || null,
+          barcode: d.barcode || null,
+        })).filter(p => p.productId && p.fnsku);
 
-        isLoading = false;
         renderList();
-
       } catch (err) {
-        isLoading = false;
-        productList.innerHTML = '<div class="empty-state" style="color:#c00;">Loi ket noi Jodoo: ' + err.message + '</div>';
+        productList.innerHTML = '<div class="empty-state" style="color:#c00;">Khong tai duoc data: ' + err.message + '</div>';
       }
     }
 
